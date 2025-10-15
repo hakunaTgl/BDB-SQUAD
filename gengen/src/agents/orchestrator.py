@@ -107,6 +107,144 @@ class BaseAgent:
         self.task_queue.sort(key=lambda t: t.priority, reverse=True)
 
 
+class MemoryAgent(BaseAgent):
+    """Retrieve and persist contextual information for active tasks"""
+    
+    def __init__(self):
+        super().__init__(
+            role=AgentRole.MEMORY_AGENT,
+            capabilities=["retrieval", "storage", "graph_traversal"]
+        )
+    
+    async def execute_task(self, task: Task) -> Dict[str, Any]:
+        await asyncio.sleep(0)
+        query = task.metadata.get("parent_task", task.description)
+        result = {
+            "status": "retrieved",
+            "query": query,
+            "retrieved_nodes": task.metadata.get("memory_context", []),
+            "notes": "MemoryAgent returned placeholder context"
+        }
+        return result
+
+
+class EthicsAgent(BaseAgent):
+    """Assess affective alignment and cultural safety"""
+    
+    def __init__(self):
+        super().__init__(
+            role=AgentRole.ETHICS_AGENT,
+            capabilities=["affective_analysis", "bias_detection", "cultural_sensitivity"]
+        )
+    
+    async def execute_task(self, task: Task) -> Dict[str, Any]:
+        await asyncio.sleep(0)
+        analysis = task.metadata.get("affective_analysis", {})
+        risk_flags = []
+        valence = analysis.get("valence", 0.0)
+        if valence < -0.5:
+            risk_flags.append("negative_valence")
+        result = {
+            "status": "evaluated",
+            "ethics_score": max(0.0, 1.0 + valence) / 2,
+            "risk_flags": risk_flags,
+            "tone": analysis.get("narrative_tone")
+        }
+        return result
+
+
+class VideoGeneratorAgent(BaseAgent):
+    """Create placeholder video artefacts for the demo pipeline"""
+    
+    def __init__(self):
+        super().__init__(
+            role=AgentRole.VIDEO_GENERATOR,
+            capabilities=["video_synthesis", "temporal_coherence", "visual_quality"]
+        )
+    
+    async def execute_task(self, task: Task) -> Dict[str, Any]:
+        await asyncio.sleep(0)
+        duration = task.metadata.get("duration", 60)
+        result = {
+            "status": "generated",
+            "format": "mp4",
+            "duration_seconds": duration,
+            "frames": duration * 30,
+            "path": "./outputs/demo_video.mp4"
+        }
+        return result
+
+
+class AudioGeneratorAgent(BaseAgent):
+    """Produce placeholder music or sound design cues"""
+    
+    def __init__(self):
+        super().__init__(
+            role=AgentRole.AUDIO_GENERATOR,
+            capabilities=["spatial_audio", "music_generation", "sound_design"]
+        )
+    
+    async def execute_task(self, task: Task) -> Dict[str, Any]:
+        await asyncio.sleep(0)
+        duration = task.metadata.get("duration", 60)
+        result = {
+            "status": "generated",
+            "format": "wav",
+            "duration_seconds": duration,
+            "sample_rate": 48000,
+            "path": "./outputs/demo_audio.wav"
+        }
+        return result
+
+
+class VoiceSynthesizerAgent(BaseAgent):
+    """Generate synthetic voice lines from placeholder content"""
+    
+    def __init__(self):
+        super().__init__(
+            role=AgentRole.VOICE_SYNTHESIZER,
+            capabilities=["tts", "emotion_control", "voice_cloning"]
+        )
+    
+    async def execute_task(self, task: Task) -> Dict[str, Any]:
+        await asyncio.sleep(0)
+        tone = task.metadata.get("emotional_tone", "neutral")
+        result = {
+            "status": "generated",
+            "format": "wav",
+            "language": "en",
+            "emotion": tone,
+            "path": "./outputs/demo_voice.wav"
+        }
+        return result
+
+
+class QualityEvaluatorAgent(BaseAgent):
+    """Provide lightweight quality and ethics validation"""
+    
+    def __init__(self):
+        super().__init__(
+            role=AgentRole.QUALITY_EVALUATOR,
+            capabilities=["quality_assessment", "ethics_validation", "output_verification"]
+        )
+    
+    async def execute_task(self, task: Task) -> Dict[str, Any]:
+        await asyncio.sleep(0)
+        dependencies = task.metadata.get("dependency_results", {})
+        failed = [
+            dep_id for dep_id, dep_result in dependencies.items()
+            if isinstance(dep_result, Exception) or dep_result is None
+        ]
+        quality_score = 0.9 if not failed else 0.5
+        result = {
+            "status": "validated" if not failed else "issues_detected",
+            "quality_score": quality_score,
+            "checked_components": list(dependencies.keys()),
+            "notes": "QualityEvaluatorAgent performed basic sanity checks"
+        }
+        return result
+
+
 class OrchestratorAgent(BaseAgent):
     """Master orchestrator that coordinates the agent swarm"""
     
@@ -229,6 +367,15 @@ Evaluate the approach:
         
         # Analyze task type from description
         description_lower = task.description.lower()
+        base_metadata = {
+            'parent_task': task.task_id,
+            'duration': task.metadata.get('duration'),
+            'affective_analysis': task.metadata.get('affective_analysis'),
+            'emotional_tone': task.metadata.get('affective_analysis', {}).get('primary_emotion'),
+            'memory_context': task.metadata.get('memory_context', []),
+            'style': task.metadata.get('style'),
+            'output_formats': task.metadata.get('output_formats', [])
+        }
         
         # Always start with affective analysis
         subtasks.append(Task(
@@ -236,7 +383,7 @@ Evaluate the approach:
             role=AgentRole.ETHICS_AGENT,
             description="Analyze emotional and cultural context",
             priority=1.0,
-            metadata={'parent_task': task.task_id}
+            metadata={**base_metadata}
         ))
         
         # Memory retrieval
@@ -245,7 +392,7 @@ Evaluate the approach:
             role=AgentRole.MEMORY_AGENT,
             description="Retrieve relevant context from NGM",
             priority=0.9,
-            metadata={'parent_task': task.task_id}
+            metadata={**base_metadata}
         ))
         
         # Content generation tasks based on type
@@ -256,7 +403,7 @@ Evaluate the approach:
                 description="Generate video content",
                 priority=0.8,
                 dependencies=[f"{task.task_id}_affective", f"{task.task_id}_memory"],
-                metadata={'parent_task': task.task_id}
+                metadata={**base_metadata}
             ))
         
         if 'audio' in description_lower or 'music' in description_lower:
@@ -266,7 +413,7 @@ Evaluate the approach:
                 description="Generate audio/music content",
                 priority=0.8,
                 dependencies=[f"{task.task_id}_affective"],
-                metadata={'parent_task': task.task_id}
+                metadata={**base_metadata}
             ))
         
         if 'voice' in description_lower or 'dialogue' in description_lower:
@@ -276,7 +423,7 @@ Evaluate the approach:
                 description="Synthesize voice content",
                 priority=0.7,
                 dependencies=[f"{task.task_id}_affective"],
-                metadata={'parent_task': task.task_id}
+                metadata={**base_metadata}
             ))
         
         # Quality evaluation
@@ -290,7 +437,7 @@ Evaluate the approach:
                 AgentRole.AUDIO_GENERATOR,
                 AgentRole.VOICE_SYNTHESIZER
             ]],
-            metadata={'parent_task': task.task_id}
+            metadata={**base_metadata}
         ))
         
         logger.info(f"Decomposed task into {len(subtasks)} subtasks")
@@ -324,6 +471,14 @@ Evaluate the approach:
             for task in ready_tasks:
                 agent = self.agents.get(task.role)
                 if agent:
+                    if task.dependencies:
+                        dependency_results = {
+                            dep_id: results.get(dep_id)
+                            for dep_id in task.dependencies
+                            if dep_id in results
+                        }
+                        if dependency_results:
+                            task.metadata['dependency_results'] = dependency_results
                     execute_coroutines.append(self._execute_with_agent(agent, task))
                 else:
                     logger.warning(f"No agent available for role {task.role.value}")

@@ -27,6 +27,7 @@ except ImportError:
 
 # Import our minimal AetherOS system
 from aetheros_minimal import AetherOS, GenerationResult
+from src.agents.orchestrator import RecursiveMetaPromptingOrchestrator, BaseAgent, AgentRole
 
 
 class AetherOSInterface:
@@ -34,6 +35,10 @@ class AetherOSInterface:
     
     def __init__(self):
         self.aether = AetherOS(mode="creative", memory_enabled=True)
+        self.orchestrator = RecursiveMetaPromptingOrchestrator()
+        # Register default agents
+        self.orchestrator.register_agent(BaseAgent(AgentRole.MEMORY_AGENT, ["retrieval", "storage"]))
+        self.orchestrator.register_agent(BaseAgent(AgentRole.ETHICS_AGENT, ["analysis", "validation"]))
         self.generation_history = []
         self.current_generation = None
         
@@ -71,59 +76,61 @@ class AetherOSInterface:
             # Run async function in sync context
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            result = loop.run_until_complete(
-                self.aether.generate(
-                    prompt=prompt,
-                    output_formats=output_formats,
-                    style=style,
-                    duration=duration,
-                    emotional_tone=emotional_tone
+            orchestrator_result = loop.run_until_complete(
+                self.orchestrator.execute(
+                    description=prompt,
+                    priority=0.9,
+                    metadata={
+                        'style': style,
+                        'duration': duration,
+                        'tone': emotional_tone
+                    }
                 )
             )
             loop.close()
             
             # Store in history
-            self.generation_history.append(result)
-            self.current_generation = result
+            self.generation_history.append(orchestrator_result)
+            self.current_generation = orchestrator_result
             
             # Build output display
             status_text = f"""
 ✅ **Generation Complete!**
 
-**ID:** {result.metadata['generation_id']}
-**Status:** {result.status}
+**ID:** {orchestrator_result.metadata['generation_id']}
+**Status:** {orchestrator_result.status}
 **Prompt:** {prompt}
 
 ---
 
 ### 🎭 Emotional Analysis
-- **Primary Emotion:** {result.metadata['affective_scores']['primary_emotion']}
-- **Valence:** {result.metadata['affective_scores']['valence']:.2f}
-- **Arousal:** {result.metadata['affective_scores']['arousal']:.2f}
+- **Primary Emotion:** {orchestrator_result.metadata['affective_scores']['primary_emotion']}
+- **Valence:** {orchestrator_result.metadata['affective_scores']['valence']:.2f}
+- **Arousal:** {orchestrator_result.metadata['affective_scores']['arousal']:.2f}
 
 ### 💾 Memory
-- **Node ID:** {result.memory_node_id}
-- **Context Used:** {result.metadata['memory_context_used']} previous memories
+- **Node ID:** {orchestrator_result.memory_node_id}
+- **Context Used:** {orchestrator_result.metadata['memory_context_used']} previous memories
 
 ### 🎯 Orchestration
-- **Tasks Executed:** {result.metadata['rmp_tasks_executed']}
+- **Tasks Executed:** {orchestrator_result.metadata['rmp_tasks_executed']}
 
 ---
 """
             
             # Build outputs display
             outputs_display = "### 📦 Generated Outputs\n\n"
-            for output_type, details in result.outputs.items():
+            for output_type, details in orchestrator_result.outputs.items():
                 outputs_display += f"**{output_type.upper()}:**\n"
                 for key, value in details.items():
                     outputs_display += f"  - {key}: `{value}`\n"
                 outputs_display += "\n"
             
             # Build preview
-            preview_text = self._build_preview(result)
+            preview_text = self._build_preview(orchestrator_result)
             
             # Build metadata JSON
-            metadata_json = json.dumps(result.metadata, indent=2, default=str)
+            metadata_json = json.dumps(orchestrator_result.metadata, indent=2, default=str)
             
             return status_text, outputs_display, preview_text, metadata_json
             
@@ -274,7 +281,6 @@ No coding required—just your imagination!
         """)
         
         with gr.Tabs():
-            
             # ============= CREATE TAB =============
             with gr.Tab("✨ Create"):
                 gr.Markdown("## Generate Your Story")
@@ -363,9 +369,42 @@ No coding required—just your imagination!
                 with gr.Accordion("🔍 Technical Metadata", open=False):
                     metadata_output = gr.Code(label="Metadata JSON", language="json")
                 
+                # Real-time outputs
+                with gr.Row():
+                    with gr.Column():
+                        output_image = gr.Image(label="Generated Image", value=None, show_label=True, elem_id="image-preview", show_download_button=False, interactive=False, type="filepath")
+                        output_video = gr.Video(label="Generated Video", value=None, show_label=True, elem_id="video-preview", show_download_button=False, interactive=False)
+                        output_audio = gr.Audio(label="Generated Audio", value=None, show_label=True, elem_id="audio-preview", show_download_button=False, interactive=False)
+                        output_script = gr.Textbox(label="Generated Script", value="", lines=10, interactive=False)
+                
                 # Connect generate button
+                def on_generate(
+                    prompt: str,
+                    style: str,
+                    duration: int,
+                    emotional_tone: str,
+                    output_video: bool,
+                    output_audio: bool,
+                    output_script: bool
+                ):
+                    result = interface.generate_content(
+                        prompt,
+                        style,
+                        duration,
+                        emotional_tone,
+                        output_video,
+                        output_audio,
+                        output_script
+                    )
+                    # Assume result.outputs contains paths to image, video, audio
+                    image_path = result.outputs.get("image", None)
+                    video_path = result.outputs.get("video", None)
+                    audio_path = result.outputs.get("audio", None)
+                    script_text = result.outputs.get("script", {}).get("text", "")
+                    return image_path, video_path, audio_path, script_text
+                
                 generate_btn.click(
-                    fn=interface.generate_content,
+                    fn=on_generate,
                     inputs=[
                         prompt_input,
                         style_input,
@@ -375,7 +414,108 @@ No coding required—just your imagination!
                         audio_checkbox,
                         script_checkbox
                     ],
-                    outputs=[status_output, outputs_output, preview_output, metadata_output]
+                    outputs=[
+                        output_image,
+                        output_video,
+                        output_audio,
+                        output_script
+                    ]
+                )
+            
+            # ============= EDIT TAB =============
+            with gr.Tab("📝 Edit"):
+                gr.Markdown("## Edit Generated Story")
+                
+                with gr.Row():
+                    with gr.Column(scale=2):
+                        edit_select = gr.Dropdown(label="Select Generation to Edit", choices=[], value=None)
+                        edit_prompt = gr.Textbox(label="Edit Prompt", lines=4)
+                        
+                        with gr.Row():
+                            edit_style = gr.Dropdown(
+                                label="Edit Style",
+                                choices=[
+                                    "cinematic",
+                                    "fantastical",
+                                    "noir",
+                                    "epic",
+                                    "intimate",
+                                    "comedic",
+                                    "horror",
+                                    "documentary"
+                                ]
+                            )
+                            
+                            edit_duration = gr.Slider(
+                                minimum=30,
+                                maximum=300,
+                                value=120,
+                                step=30,
+                                label="Edit Duration (seconds)"
+                            )
+                        
+                        edit_tone = gr.Textbox(
+                            label="Edit Emotional Tone",
+                            value=""
+                        )
+                        
+                        edit_btn = gr.Button("🔄 Re-Generate", variant="primary")
+                    
+                    with gr.Column(scale=1):
+                        gr.Markdown("### Current Outputs")
+                        edit_image = gr.Image(label="Edited Image", value=None, show_label=True, elem_id="edit-image-preview", show_download_button=False, interactive=False, type="filepath")
+                        edit_video = gr.Video(label="Edited Video", value=None, show_label=True, elem_id="edit-video-preview", show_download_button=False, interactive=False)
+                        edit_audio = gr.Audio(label="Edited Audio", value=None, show_label=True, elem_id="edit-audio-preview", show_download_button=False, interactive=False)
+                        edit_script = gr.Textbox(label="Edited Script", value="", lines=10, interactive=False)
+                
+                # Connect edit button
+                def on_edit(
+                    gen_id: str,
+                    prompt: str,
+                    style: str,
+                    tone: str,
+                    duration: int
+                ):
+                    # Find and update generation, return new outputs
+                    for i, result in enumerate(self.generation_history):
+                        if result.metadata['generation_id'] == gen_id:
+                            # Update fields
+                            result.metadata['prompt'] = prompt
+                            result.metadata['style'] = style
+                            result.metadata['duration'] = duration
+                            # TODO: Update emotional tone and other fields as needed
+                            
+                            # Regenerate content
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            new_result = loop.run_until_complete(
+                                self.aether.generate(
+                                    prompt=prompt,
+                                    output_formats=result.outputs.keys(),
+                                    style=style,
+                                    duration=duration,
+                                    emotional_tone=tone
+                                )
+                            )
+                            loop.close()
+                            
+                            # Update history
+                            self.generation_history[i] = new_result
+                            self.current_generation = new_result
+                            
+                            # Return new output paths
+                            image_path = new_result.outputs.get("image", None)
+                            video_path = new_result.outputs.get("video", None)
+                            audio_path = new_result.outputs.get("audio", None)
+                            script_text = new_result.outputs.get("script", {}).get("text", "")
+                            return image_path, video_path, audio_path, script_text
+                    
+                    return None, None, None, ""
+                
+                edit_btn.click(
+                    fn=on_edit,
+                    inputs=[edit_select, edit_prompt, edit_style, edit_tone, edit_duration],
+                    outputs=[edit_image, edit_video, edit_audio, edit_script]
                 )
             
             # ============= HISTORY TAB =============
@@ -409,6 +549,18 @@ No coding required—just your imagination!
                 
                 # Auto-load stats
                 demo.load(fn=interface.get_statistics, outputs=[stats_display])
+            
+            # ============= GALLERY TAB =============
+            with gr.Tab("🖼️ Gallery"):
+                gr.Markdown("## Your Finished Products")
+                gallery = gr.Gallery(label="All Generated Media", value=[], show_label=True, elem_id="gallery-preview")
+                
+                def load_gallery():
+                    # List all image/video/audio files in output directory
+                    # Return as list of file paths
+                    return []
+                
+                demo.load(fn=load_gallery, outputs=[gallery])
             
             # ============= EXAMPLES TAB =============
             with gr.Tab("💡 Examples"):

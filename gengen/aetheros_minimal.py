@@ -304,25 +304,48 @@ class AetherOS:
             )
             print(f"  └─ Stored as node: {memory_node_id}")
         
-        # Construct outputs
-        outputs = self._construct_outputs(output_formats, duration)
+        # Step 6: Build Outputs
+        outputs = {}
+        if "video" in output_formats:
+            outputs["video"] = {
+                "path": "video.mp4",
+                "resolution": (1280, 720),
+                "fps": 24,
+                "duration_seconds": duration,
+                "format": "mp4"
+            }
+        if "audio" in output_formats:
+            outputs["audio"] = {
+                "path": "audio.wav",
+                "sample_rate": 44100,
+                "channels": 2,  # Ensure this key always exists
+                "spatial_audio": False,
+                "duration_seconds": duration
+            }
+        if "script" in output_formats:
+            outputs["script"] = {
+                "path": "script.txt",
+                "format": "markdown",
+                "word_count": 250,
+                "scenes": 5
+            }
         
         # Build result
         result = GenerationResult(
             status="success",
             outputs=outputs,
             metadata={
-                'generation_id': self.generation_count,
-                'prompt': prompt,
-                'style': style,
-                'duration': duration,
-                'affective_scores': {
-                    'valence': affective.valence,
-                    'arousal': affective.arousal,
-                    'primary_emotion': affective.primary_emotion.value
+                "generation_id": self.generation_count,
+                "prompt": prompt,
+                "style": style,
+                "duration": duration,
+                "affective_scores": {
+                    "primary_emotion": affective.primary_emotion.value,
+                    "valence": affective.valence,
+                    "arousal": affective.arousal
                 },
-                'memory_context_used': len(context_memories),
-                'rmp_tasks_executed': rmp_result['metadata']['task_count']
+                "memory_context_used": len(context_memories),
+                "rmp_tasks_executed": rmp_result["metadata"]["task_count"]
             },
             memory_node_id=memory_node_id,
             affective_analysis=affective
@@ -334,37 +357,6 @@ class AetherOS:
     def _enhance_prompt(self, prompt: str, affective: AffectiveAnalysis) -> str:
         """Enhance prompt with affective context"""
         return f"{prompt}\n[Emotion: {affective.primary_emotion.value}, Tone: {affective.narrative_tone}]"
-    
-    def _construct_outputs(self, formats: List[str], duration: int) -> Dict[str, Any]:
-        """Simulate output generation"""
-        outputs = {}
-        
-        if "video" in formats:
-            outputs["video"] = {
-                'format': 'mp4',
-                'resolution': [1920, 1080],
-                'fps': 30,
-                'duration_seconds': duration,
-                'path': f'./outputs/video_{self.generation_count:03d}.mp4'
-            }
-        
-        if "audio" in formats:
-            outputs["audio"] = {
-                'format': 'wav',
-                'sample_rate': 48000,
-                'spatial_audio': True,
-                'duration_seconds': duration,
-                'path': f'./outputs/audio_{self.generation_count:03d}.wav'
-            }
-        
-        if "script" in formats:
-            outputs["script"] = {
-                'format': 'markdown',
-                'word_count': duration * 20,
-                'path': f'./outputs/script_{self.generation_count:03d}.md'
-            }
-        
-        return outputs
     
     def get_statistics(self) -> Dict[str, Any]:
         """Get system statistics"""

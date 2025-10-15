@@ -188,6 +188,42 @@ After launching:
 
 ---
 
+# 🚀 AetherOS Launch Guide
+
+## Quick Start
+
+- **Web Interface:**
+  - Install Gradio: `pip install gradio`
+  - Run: `python3 aetheros_interface.py`
+  - Opens at: http://localhost:7860
+
+- **Minimal Demo:**
+  - Run: `python3 aetheros_minimal.py`
+
+- **Production Demo:**
+  - Run: `python3 run_aetheros.py`
+
+- **Launcher:**
+  - Run: `./studio.sh` or `python3 launch_studio.py`
+
+## Core Files
+- `src/` - All core modules
+- `aetheros_interface.py` - Main web interface
+- `aetheros_minimal.py` - Minimal demo
+- `run_aetheros.py` - Quick start
+- `launch_studio.py`, `studio.sh` - Launcher scripts
+- `requirements.txt` - Dependencies
+- `README.md` - Documentation
+
+## Documentation
+- All guides and status info are now in this file and README.md.
+
+## Support
+- For help, run: `python3 launch_studio.py --help`
+- For details, see: `README.md`
+
+---
+
 **Questions? Issues?**
 - Check the help: `python3 launch_studio.py --help`
 - Read the docs: `README.md`

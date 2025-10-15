@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 import numpy as np
 from loguru import logger
+from pathlib import Path
 
 # Import core components
 import sys
@@ -23,7 +24,16 @@ sys.path.append('/Users/a101/Desktop/gengen')
 
 from src.core.ngm.graph_memory import NeuralGraphMemory, LPG2VecEncoder
 from src.core.apu.affective_layer import AffectiveReasoningLayer, create_affective_prompt_enhancement
-from src.agents.orchestrator import RecursiveMetaPromptingOrchestrator, BaseAgent, AgentRole, Task
+from src.agents.orchestrator import (
+    RecursiveMetaPromptingOrchestrator,
+    MemoryAgent,
+    EthicsAgent,
+    VideoGeneratorAgent,
+    AudioGeneratorAgent,
+    VoiceSynthesizerAgent,
+    QualityEvaluatorAgent,
+)
+from src.pipelines import AudioAnimationPipeline, StoryboardVideoPipeline
 
 
 @dataclass
@@ -101,6 +111,11 @@ class AetherOS:
         self._register_agents()
         logger.info("✓ RMP Orchestrator initialized")
         
+        # Initialize advanced media pipelines
+        self.audio_animation_pipeline = AudioAnimationPipeline()
+        self.storyboard_pipeline = StoryboardVideoPipeline()
+        logger.info("✓ Media pipelines ready")
+        
         # System statistics
         self.generation_count = 0
         self.total_memory_nodes = 0
@@ -112,13 +127,12 @@ class AetherOS:
         
         # Create placeholder agents (in production, these would be full implementations)
         agents = [
-            BaseAgent(AgentRole.MEMORY_AGENT, ["retrieval", "storage", "graph_traversal"]),
-            BaseAgent(AgentRole.ETHICS_AGENT, ["affective_analysis", "bias_detection", "cultural_sensitivity"]),
-            BaseAgent(AgentRole.PIGC_ARCHITECT, ["physics_simulation", "world_modeling", "constraint_solving"]),
-            BaseAgent(AgentRole.VIDEO_GENERATOR, ["video_synthesis", "temporal_coherence", "visual_quality"]),
-            BaseAgent(AgentRole.AUDIO_GENERATOR, ["spatial_audio", "music_generation", "sound_design"]),
-            BaseAgent(AgentRole.VOICE_SYNTHESIZER, ["tts", "emotion_control", "voice_cloning"]),
-            BaseAgent(AgentRole.QUALITY_EVALUATOR, ["quality_assessment", "ethics_validation", "output_verification"])
+            MemoryAgent(),
+            EthicsAgent(),
+            VideoGeneratorAgent(),
+            AudioGeneratorAgent(),
+            VoiceSynthesizerAgent(),
+            QualityEvaluatorAgent()
         ]
         
         for agent in agents:
@@ -212,6 +226,32 @@ class AetherOS:
             }
         )
         
+        # Optional advanced media pipelines
+        pipeline_results: Dict[str, Any] = {}
+        
+        audio_input = kwargs.get('audio_path')
+        if "animation" in output_formats and audio_input:
+            try:
+                animation_result = await self.audio_animation_pipeline.run(
+                    audio_path=Path(audio_input),
+                    reference_assets=kwargs.get('reference_assets'),
+                    character_profile=kwargs.get('character_profile'),
+                )
+                pipeline_results["animation"] = animation_result
+            except Exception as exc:  # pragma: no cover - best effort
+                logger.exception("Audio animation pipeline failed: {}", exc)
+        
+        if "storyboard" in output_formats:
+            try:
+                storyboard_result = await self.storyboard_pipeline.generate(
+                    narrative_prompt=kwargs.get('storyboard_prompt', prompt),
+                    style_reference=kwargs.get('style_reference'),
+                    existing_assets=kwargs.get('existing_assets'),
+                )
+                pipeline_results["storyboard"] = storyboard_result
+            except Exception as exc:  # pragma: no cover - best effort
+                logger.exception("Storyboard pipeline failed: {}", exc)
+        
         # Step 5: Store in Memory
         logger.info("Step 5/5: Memory storage")
         memory_node_id = None
@@ -238,7 +278,7 @@ class AetherOS:
         # Construct result
         result = GenerationResult(
             status="success" if rmp_result['status'] == 'success' else "failed",
-            outputs=self._construct_outputs(output_formats, rmp_result),
+            outputs=self._construct_outputs(output_formats, rmp_result, pipeline_results),
             metadata={
                 'generation_id': self.generation_count,
                 'prompt': prompt,
@@ -251,7 +291,11 @@ class AetherOS:
                     'primary_emotion': affective_analysis.primary_emotion.value
                 },
                 'memory_context_used': len(context_memories),
-                'rmp_tasks_executed': rmp_result.get('metadata', {}).get('task_count', 0)
+                'rmp_tasks_executed': rmp_result.get('metadata', {}).get('task_count', 0),
+                'pipeline_artifacts': {
+                    key: value.metadata if hasattr(value, "metadata") else {}
+                    for key, value in pipeline_results.items()
+                }
             },
             memory_node_id=memory_node_id,
             affective_analysis=affective_analysis
@@ -266,11 +310,13 @@ class AetherOS:
     def _construct_outputs(
         self,
         output_formats: List[str],
-        rmp_result: Dict[str, Any]
+        rmp_result: Dict[str, Any],
+        pipeline_results: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Construct output dictionary from RMP results"""
         
         outputs = {}
+        pipeline_results = pipeline_results or {}
         
         for format_type in output_formats:
             if format_type == "video":
@@ -309,6 +355,42 @@ class AetherOS:
                     'path': './outputs/script_001.md',
                     'word_count': 1200,
                     'scenes': 8
+                }
+            
+            elif format_type == "animation" and "animation" in pipeline_results:
+                animation_result = pipeline_results["animation"]
+                outputs["animation"] = {
+                    'format': 'mp4',
+                    'path': str(animation_result.video_path),
+                    'visemes': str(animation_result.viseme_track_path),
+                    'metadata': animation_result.metadata
+                }
+            
+            elif format_type == "storyboard" and "storyboard" in pipeline_results:
+                storyboard_result = pipeline_results["storyboard"]
+                outputs["storyboard"] = {
+                    'format': 'pdf',
+                    'path': str(
+                        storyboard_result.storyboard_pdf
+                        if storyboard_result.storyboard_pdf
+                        else ''
+                    ),
+                    'scenes': [
+                        {
+                            'scene_id': scene.scene_id,
+                            'shot_type': scene.shot_type,
+                            'duration_seconds': scene.duration_seconds,
+                            'keyframes': [str(path) for path in scene.keyframes],
+                            'metadata': scene.metadata
+                        }
+                        for scene in storyboard_result.scenes
+                    ],
+                    'animatic': str(
+                        storyboard_result.animatic_path
+                        if storyboard_result.animatic_path
+                        else ''
+                    ),
+                    'metadata': storyboard_result.metadata
                 }
         
         return outputs
