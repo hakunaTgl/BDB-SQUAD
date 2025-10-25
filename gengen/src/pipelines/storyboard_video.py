@@ -3,13 +3,15 @@ Storyboarded Video Pipeline
 ===========================
 
 Breaks long-form narratives into structured scene plans and renders detailed
-storyboards or animatics. Designed to scale from quick previews to film-length
-productions, while offering tunable fidelity to control GPU cost.
+storyboards or animatics. Now integrated with Hermes LLM for intelligent
+narrative decomposition.
 """
 
 from __future__ import annotations
 
 import asyncio
+import sys
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -17,6 +19,15 @@ import hashlib
 
 from loguru import logger
 from diffusers import StableDiffusionPipeline
+
+# Import LLM service
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+try:
+    from core.llm import get_llm_service
+    LLM_AVAILABLE = True
+except ImportError:
+    LLM_AVAILABLE = False
+    logger.warning("LLM service not available for storyboard pipeline")
 
 
 @dataclass
@@ -73,6 +84,14 @@ class StoryboardVideoPipeline:
         self.config.output_dir.mkdir(parents=True, exist_ok=True)
         self.config.tmp_dir.mkdir(parents=True, exist_ok=True)
 
+        # Initialize LLM service
+        if LLM_AVAILABLE:
+            self.llm = get_llm_service()
+            logger.info("StoryboardVideoPipeline initialized with Hermes LLM support")
+        else:
+            self.llm = None
+            logger.warning("StoryboardVideoPipeline running without LLM support")
+
         logger.info(
             "StoryboardVideoPipeline initialized with preset '{}'",
             self.config.preset,
@@ -102,9 +121,41 @@ class StoryboardVideoPipeline:
         style_reference: Optional[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         """
-        Use LLM + rules to break story into scenes and beats.
+        Use Hermes LLM to break story into scenes and beats.
         """
-        logger.debug("Decomposing narrative")
+        logger.debug("Decomposing narrative with LLM")
+        
+        # Try using LLM for intelligent decomposition
+        if self.llm:
+            try:
+                # Calculate target number of scenes based on prompt length
+                num_scenes = min(self.config.max_scenes, max(3, len(prompt.split()) // 50))
+                
+                scenes = await self.llm.decompose_story(
+                    prompt=prompt,
+                    duration=num_scenes * 10,  # Estimate duration
+                    num_scenes=num_scenes
+                )
+                
+                # Convert LLM output to expected format
+                scene_plan = []
+                for i, scene in enumerate(scenes):
+                    scene_plan.append({
+                        "scene_id": f"scene_{i+1:03d}",
+                        "description": scene.get('description', scene.get('title', prompt[:120])),
+                        "location": "TBD",
+                        "characters": [],
+                        "duration_seconds": scene.get('duration', 10.0),
+                        "title": scene.get('title', f'Scene {i+1}')
+                    })
+                
+                if scene_plan:
+                    logger.info(f"LLM decomposed narrative into {len(scene_plan)} scenes")
+                    return scene_plan
+            except Exception as e:
+                logger.warning(f"LLM decomposition failed: {e}, using fallback")
+        
+        # Fallback: Simple decomposition
         await asyncio.sleep(0)
         return [
             {

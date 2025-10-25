@@ -4,15 +4,27 @@ Self-optimizing agent swarm with utility-based reflexes
 
 This module implements the cognitive control layer that enables
 autonomous problem-solving, task delegation, and continuous self-improvement.
+Now integrated with Hermes LLM for intelligent meta-prompting.
 """
 
 import asyncio
+import sys
+import os
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from datetime import datetime
 import json
 from loguru import logger
+
+# Import LLM service
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+try:
+    from core.llm import get_llm_service
+    LLM_AVAILABLE = True
+except ImportError:
+    LLM_AVAILABLE = False
+    logger.warning("LLM service not available for orchestrator")
 
 
 class AgentRole(Enum):
@@ -246,7 +258,7 @@ class QualityEvaluatorAgent(BaseAgent):
 
 
 class OrchestratorAgent(BaseAgent):
-    """Master orchestrator that coordinates the agent swarm"""
+    """Master orchestrator that coordinates the agent swarm with Hermes LLM"""
     
     def __init__(self):
         super().__init__(
@@ -263,6 +275,14 @@ class OrchestratorAgent(BaseAgent):
         self.tasks: Dict[str, Task] = {}
         self.meta_prompts: Dict[str, MetaPrompt] = {}
         self.current_meta_prompt: Optional[MetaPrompt] = None
+        
+        # Initialize LLM service
+        if LLM_AVAILABLE:
+            self.llm = get_llm_service()
+            logger.info("Orchestrator initialized with Hermes LLM support")
+        else:
+            self.llm = None
+            logger.warning("Orchestrator running without LLM support")
     
     async def execute_task(self, task: Task) -> Any:
         """Orchestrate complex task execution"""
@@ -307,11 +327,35 @@ class OrchestratorAgent(BaseAgent):
         return new_prompt
     
     async def generate_meta_prompt(self, task: Task) -> MetaPrompt:
-        """Generate new meta-prompt using recursive refinement"""
+        """Generate new meta-prompt using Hermes LLM or fallback"""
         
         template_id = f"mp_{len(self.meta_prompts)}_{datetime.now().timestamp()}"
         
-        # Base meta-prompt structure (SPARC-inspired)
+        # Try using LLM for intelligent meta-prompt generation
+        if self.llm:
+            try:
+                content = await self.llm.generate_meta_prompt(
+                    task_description=task.description,
+                    context={
+                        'priority': task.priority,
+                        'metadata': task.metadata,
+                        'role': task.role.value
+                    }
+                )
+                
+                meta_prompt = MetaPrompt(
+                    template_id=template_id,
+                    version=1,
+                    content=content,
+                    performance_score=0.5  # Initial neutral score
+                )
+                
+                logger.info(f"Generated LLM-powered meta-prompt {template_id}")
+                return meta_prompt
+            except Exception as e:
+                logger.warning(f"LLM meta-prompt generation failed: {e}, using fallback")
+        
+        # Fallback: Base meta-prompt structure (SPARC-inspired)
         content = f"""
 # Meta-Prompt for: {task.description}
 
@@ -560,11 +604,36 @@ Evaluate the approach:
             await self.refine_meta_prompt(meta_prompt)
     
     async def refine_meta_prompt(self, meta_prompt: MetaPrompt):
-        """Generate refined version of underperforming meta-prompt"""
+        """Generate refined version of underperforming meta-prompt using Hermes LLM"""
         
         new_template_id = f"{meta_prompt.template_id}_v{meta_prompt.version + 1}"
         
-        # Create refined version (in production, use LLM for refinement)
+        # Use LLM for intelligent refinement
+        if self.llm:
+            try:
+                performance_feedback = f"Performance score: {meta_prompt.performance_score:.2f} after {meta_prompt.usage_count} uses. Below target threshold of 0.6."
+                
+                refined_content = await self.llm.refine_meta_prompt(
+                    original_prompt=meta_prompt.content,
+                    performance_feedback=performance_feedback
+                )
+                
+                refined_prompt = MetaPrompt(
+                    template_id=new_template_id,
+                    version=meta_prompt.version + 1,
+                    content=refined_content,
+                    performance_score=meta_prompt.performance_score,
+                    parent_template_id=meta_prompt.template_id
+                )
+                
+                self.meta_prompts[new_template_id] = refined_prompt
+                
+                logger.info(f"LLM-refined meta-prompt: {meta_prompt.template_id} -> {new_template_id}")
+                return
+            except Exception as e:
+                logger.warning(f"LLM refinement failed: {e}, using fallback")
+        
+        # Fallback: Simple refinement
         refined_content = meta_prompt.content + "\n\n## REFINEMENTS\n- Enhanced error handling\n- Improved task decomposition\n- Better resource allocation"
         
         refined_prompt = MetaPrompt(
