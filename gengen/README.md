@@ -51,13 +51,18 @@ See `LLM_SETUP.md` for setup instructions.
 ## File Structure
 
 - `src/` - Core modules
+  - `src/core/llm/` - **Hermes LLM integration** (NEW)
+  - `src/agents/` - Agent orchestration with LLM-powered meta-prompting
+  - `src/pipelines/` - Advanced media pipelines with LLM narrative decomposition
 - `aetheros_interface.py` - Web interface
-- `aetheros_minimal.py` - Minimal demo
+- `aetheros_minimal.py` - Minimal demo with Hermes LLM
 - `run_aetheros.py` - Quick start
 - `launch_studio.py`, `studio.sh` - Launcher
 - `requirements.txt` - Dependencies
-- `src/pipelines/` - Advanced media pipelines (audio animation, storyboard)
+- `LLM_SETUP.md` - **Hermes model setup guide** (NEW)
+- `.env.example` - **LLM configuration template** (NEW)
 - `ROADMAP.md` - Next-generation development plan
+- `test_llm_integration.py` - LLM integration tests
 
 ---
 
