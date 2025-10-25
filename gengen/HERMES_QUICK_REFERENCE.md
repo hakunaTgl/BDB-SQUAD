@@ -58,6 +58,12 @@ LLM_MAX_TOKENS=2048      # Max length
 ## Usage in Code
 
 ```python
+import sys
+import os
+
+# Add src to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+
 from core.llm import get_llm_service
 
 # Get service
@@ -171,7 +177,13 @@ python3 test_llm_integration.py
 # Check service status
 python3 -c "
 import asyncio
-from src.core.llm import get_llm_service
+import sys
+import os
+
+# Add src to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+
+from core.llm import get_llm_service
 
 async def check():
     llm = get_llm_service()
