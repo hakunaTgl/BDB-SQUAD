@@ -6,7 +6,14 @@ Integrates Nous-Hermes model via Ollama or HuggingFace
 from typing import Optional, Dict, Any, List
 import json
 import asyncio
-from loguru import logger
+
+# Make loguru optional
+try:
+    from loguru import logger
+except ImportError:
+    import logging
+    logger = logging.getLogger(__name__)
+    logging.basicConfig(level=logging.INFO)
 
 
 class HermesProvider:
@@ -74,8 +81,14 @@ class HermesProvider:
     async def _initialize_huggingface(self):
         """Initialize HuggingFace transformers"""
         try:
-            import torch
-            from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+            try:
+                import torch
+                from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+            except ImportError:
+                logger.warning("transformers or torch not installed, using mock mode")
+                self.model = None
+                self.tokenizer = None
+                return
             
             logger.info(f"Loading model {self.config.hf_model_id}")
             
@@ -195,6 +208,11 @@ class HermesProvider:
             return await self._generate_mock(prompt, system_prompt)
         
         try:
+            try:
+                import torch
+            except ImportError:
+                return await self._generate_mock(prompt, system_prompt)
+            
             # Format prompt for Hermes
             formatted_prompt = f"""<|im_start|>system
 {system_prompt}<|im_end|>

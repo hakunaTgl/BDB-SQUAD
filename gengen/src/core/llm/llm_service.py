@@ -5,7 +5,14 @@ Provides high-level interface for all LLM operations
 
 from typing import Optional, Dict, Any, List
 import asyncio
-from loguru import logger
+
+# Make loguru optional
+try:
+    from loguru import logger
+except ImportError:
+    import logging
+    logger = logging.getLogger(__name__)
+    logging.basicConfig(level=logging.INFO)
 
 from .llm_config import LLMConfig
 from .hermes_provider import HermesProvider
