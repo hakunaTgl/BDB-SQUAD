@@ -53,7 +53,7 @@ python3 launch_studio.py
 cd gengen/
 pytest                    # Run all tests
 pytest -v                 # Verbose output
-pytest --cov              # With coverage report
+pytest --cov=src          # With coverage report for src/ directory
 pytest tests/test_file.py # Run specific test file
 ```
 
@@ -129,7 +129,7 @@ async def process_data(input_data: Dict[str, Any]) -> ProcessResult:
 
 ### Test Structure
 
-- Place tests in a `tests/` directory if creating new tests
+- Place tests in `gengen/tests/` directory if creating new tests
 - Name test files with `test_` prefix (e.g., `test_graph_memory.py`)
 - Use descriptive test function names: `test_<what>_<condition>_<expected>`
 
@@ -229,5 +229,6 @@ pytest -v
 ## Getting Help
 
 - Review `LAUNCH_GUIDE.md` for detailed setup instructions
-- Check `COMPLETE_GUIDE.md` for comprehensive documentation
+- Check `README.md` for project overview
 - Refer to `ROADMAP.md` for planned features and architecture
+- See `STATUS.md` for current project status
