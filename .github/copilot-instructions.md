@@ -129,7 +129,7 @@ async def process_data(input_data: Dict[str, Any]) -> ProcessResult:
 
 ### Test Structure
 
-- Place tests in `gengen/tests/` directory if creating new tests
+- Place tests in `gengen/tests/` directory (create if it doesn't exist)
 - Name test files with `test_` prefix (e.g., `test_graph_memory.py`)
 - Use descriptive test function names: `test_<what>_<condition>_<expected>`
 
@@ -231,4 +231,3 @@ pytest -v
 - Review `LAUNCH_GUIDE.md` for detailed setup instructions
 - Check `README.md` for project overview
 - Refer to `ROADMAP.md` for planned features and architecture
-- See `STATUS.md` for current project status
