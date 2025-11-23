@@ -137,15 +137,17 @@ async def process_data(input_data: Dict[str, Any]) -> ProcessResult:
 
 ```python
 import pytest
+from aetheros_minimal import MinimalAffectiveLayer, EmotionCategory
 
 
 def test_affective_analysis_detects_joy():
     """Test that affective layer correctly identifies joyful content."""
     # Arrange
+    affective_layer = MinimalAffectiveLayer()
     text = "I am so happy and full of joy!"
     
     # Act
-    result = analyze_emotion(text)
+    result = affective_layer.analyze(text)
     
     # Assert
     assert result.primary_emotion == EmotionCategory.JOY
@@ -222,9 +224,9 @@ pytest -v
 
 ## License
 
-- Code: Apache 2.0
-- Content/Documentation: CC BY-SA 4.0
-- Check license headers when adding new files
+- **Note:** License files are pending (see ROADMAP.md Phase 1 for LICENSE confirmation)
+- Planned licenses: Apache 2.0 for code, CC BY-SA 4.0 for content/documentation
+- Check project status before adding license headers to new files
 
 ## Getting Help
 
