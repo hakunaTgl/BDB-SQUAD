@@ -286,10 +286,12 @@ AetherOS is open-source and welcomes contributions!
 
 ## 📄 License
 
-- **Code:** Apache 2.0 (pending confirmation)
-- **Documentation:** CC BY-SA 4.0 (pending confirmation)
+**Note:** License files are in the process of being finalized.
 
-See ROADMAP.md Phase 1 for license status.
+- **Planned Code License:** Apache 2.0
+- **Planned Documentation License:** CC BY-SA 4.0
+
+See ROADMAP.md Phase 1 for license completion status. Until LICENSE files are added to the repository, please contact the project maintainers for usage clarification.
 
 ---
 

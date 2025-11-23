@@ -9,7 +9,12 @@ echo ""
 
 # Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd "$SCRIPT_DIR"
+
+# Change to the script directory
+if ! cd "$SCRIPT_DIR"; then
+  echo "❌ Error: Could not change to script directory"
+  exit 1
+fi
 
 # Call the studio launcher
 ./studio.sh "$@"

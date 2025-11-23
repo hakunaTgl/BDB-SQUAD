@@ -15,8 +15,15 @@ fi
 
 # Install required packages if missing
 echo "✓ Checking dependencies..."
-pip install --quiet --upgrade pip
-pip install --quiet loguru gradio
+if ! pip install --quiet --upgrade pip; then
+  echo "⚠️  Warning: Could not upgrade pip"
+fi
+
+if ! pip install --quiet loguru gradio; then
+  echo "❌ Error: Failed to install required packages (loguru, gradio)"
+  echo "Please install manually: pip install loguru gradio"
+  exit 1
+fi
 
 echo "✓ Starting orchestrator (background)..."
 # Start orchestrator (background)
