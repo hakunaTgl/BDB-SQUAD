@@ -15,12 +15,12 @@ fi
 
 # Install required packages if missing
 echo "✓ Checking dependencies..."
-# Optional: Upgrade pip (non-blocking)
+# Automatic (non-blocking) pip upgrade
 pip install --quiet --upgrade pip 2>/dev/null || true
 
 # Required packages for start_all mode
 REQUIRED_PACKAGES="loguru gradio"
-if ! pip install --quiet $REQUIRED_PACKAGES; then
+if ! pip install --quiet "$REQUIRED_PACKAGES"; then
   echo "❌ Error: Failed to install required packages ($REQUIRED_PACKAGES)"
   echo "Please install manually: pip install $REQUIRED_PACKAGES"
   exit 1
