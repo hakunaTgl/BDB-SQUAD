@@ -1,15 +1,28 @@
 #!/usr/bin/env python3
 """
-AetherOS - Minimal Standalone Demo (No External Dependencies)
-Demonstrates the core architecture without requiring numpy, networkx, etc.
+AetherOS - Minimal Standalone Demo with Hermes LLM Integration
+Demonstrates the core architecture with integrated Hermes model for text generation
 """
 
 import asyncio
 import json
+import sys
+import os
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
+
+# Add src to path for LLM imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+
+# Try to import LLM service, fall back to mock if not available
+try:
+    from core.llm import LLMService, get_llm_service
+    LLM_AVAILABLE = True
+except ImportError:
+    LLM_AVAILABLE = False
+    print("⚠️  LLM service not available, using mock generation")
 
 
 # ============================================================================
@@ -226,8 +239,8 @@ class GenerationResult:
 
 class AetherOS:
     """
-    AetherOS - Minimal Standalone Version
-    Demonstrates core architecture without external dependencies
+    AetherOS - Now with Hermes LLM Integration
+    Demonstrates core architecture with integrated language model
     """
     
     def __init__(self, mode: str = "creative", memory_enabled: bool = True):
@@ -238,6 +251,14 @@ class AetherOS:
         self.affective_layer = MinimalAffectiveLayer()
         self.orchestrator = MinimalOrchestrator()
         self.generation_count = 0
+        
+        # Initialize LLM service
+        if LLM_AVAILABLE:
+            self.llm = get_llm_service()
+            print("✓ Hermes LLM initialized")
+        else:
+            self.llm = None
+            print("⚠️  LLM not available, using mock generation")
         
         print("✓ Affective Reasoning Layer initialized")
         print("✓ Memory System initialized")
@@ -277,10 +298,23 @@ class AetherOS:
             for mem, score in context_memories:
                 print(f"      • {mem.content[:50]}... (score: {score:.2f})")
         
-        # Step 3: Prompt Enhancement
-        print("\n[3/5] ✨ Enhancing prompt...")
-        enhanced_prompt = self._enhance_prompt(prompt, affective)
-        print(f"  └─ Enhanced with affective context")
+        # Step 3: Prompt Enhancement with LLM
+        print("\n[3/5] ✨ Enhancing prompt with Hermes LLM...")
+        enhanced_prompt = await self._enhance_prompt(prompt, affective, style, emotional_tone)
+        print(f"  └─ Enhanced with LLM-powered narrative expansion")
+        if enhanced_prompt != prompt:
+            print(f"  └─ Preview: {enhanced_prompt[:100]}...")
+        
+        # Step 3b: Generate script if requested
+        script_content = None
+        if "script" in output_formats and self.llm:
+            print("\n[3b/5] 📝 Generating script with Hermes LLM...")
+            script_content = await self.llm.generate_script(
+                prompt=enhanced_prompt or prompt,
+                duration=duration,
+                style=style
+            )
+            print(f"  └─ Script generated ({len(script_content)} characters)")
         
         # Step 4: Orchestrated Generation
         print("\n[4/5] 🎯 Orchestrating generation...")
@@ -326,8 +360,9 @@ class AetherOS:
             outputs["script"] = {
                 "path": "script.txt",
                 "format": "markdown",
-                "word_count": 250,
-                "scenes": 5
+                "word_count": len(script_content.split()) if script_content else 250,
+                "scenes": 5,
+                "content": script_content if script_content else "Script placeholder"
             }
         
         # Build result
@@ -354,8 +389,27 @@ class AetherOS:
         self.generation_count += 1
         return result
     
-    def _enhance_prompt(self, prompt: str, affective: AffectiveAnalysis) -> str:
-        """Enhance prompt with affective context"""
+    async def _enhance_prompt(
+        self, 
+        prompt: str, 
+        affective: AffectiveAnalysis,
+        style: str = "cinematic",
+        emotional_tone: Optional[str] = None
+    ) -> str:
+        """Enhance prompt with affective context and LLM"""
+        # Use LLM if available
+        if self.llm:
+            try:
+                enhanced = await self.llm.enhance_prompt(
+                    prompt=prompt,
+                    style=style,
+                    emotional_tone=emotional_tone or affective.primary_emotion.value
+                )
+                return enhanced
+            except Exception as e:
+                print(f"  ⚠️  LLM enhancement failed: {e}, using fallback")
+        
+        # Fallback to simple enhancement
         return f"{prompt}\n[Emotion: {affective.primary_emotion.value}, Tone: {affective.narrative_tone}]"
     
     def get_statistics(self) -> Dict[str, Any]:
@@ -364,7 +418,8 @@ class AetherOS:
             'system': {
                 'version': '1.0.0-alpha',
                 'mode': self.mode,
-                'generations_completed': self.generation_count
+                'generations_completed': self.generation_count,
+                'llm_enabled': LLM_AVAILABLE and self.llm is not None
             },
             'orchestrator': {
                 'tasks_completed': self.orchestrator.tasks_completed
@@ -373,6 +428,9 @@ class AetherOS:
         
         if self.memory:
             stats['memory'] = self.memory.get_stats()
+        
+        if self.llm:
+            stats['llm'] = self.llm.get_status()
         
         return stats
 
